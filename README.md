@@ -21,7 +21,7 @@
 ### インストールが必要なもの
 - Go
 - docker / docker-compose
-### docker-composeを利用したMySQL, redisの準備
+### docker-composeを利用したMySQL, Redisの準備
 #### MySQL
 MySQLはリレーショナルデータベースの1つです。
 ```
