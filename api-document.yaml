@@ -1,0 +1,356 @@
+openapi: 3.0.2
+info:
+  title: CA Tech Dojo API
+  description: |-
+    <b>CA Tech Dojo API仕様</b><br>
+    まずはこのAPI仕様に沿って機能を実装してみましょう。<br><br>
+    なお、実装に際してランキング機能の実装が必要となります。<br>
+    ランキングの実装にMySQLではなくredisを利用することも可能です。<br>
+    MySQLのORDER BYを利用するか、redisのZSETを利用して実装しましょう。
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/
+tags:
+  - name: setting
+    description: 設定関連API
+  - name: user
+    description: ユーザ関連API
+  - name: game
+    description: インゲーム関連API
+  - name: gacha
+    description: ガチャ関連API
+  - name: ranking
+    description: ランキング関連API
+  - name: collection
+    description: コレクション関連API
+paths:
+  /setting/get:
+    get:
+      tags:
+        - setting
+      summary: 設定取得API
+      description: |
+        ゲーム設定情報を取得します。まずは定数で定義をしてみましょう。
+        余裕があれば設定値をデータベースで管理できるようにしてみましょう。
+      responses:
+        200:
+          description: A successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingGetResponse'
+  /user/create:
+    post:
+      tags:
+        - user
+      summary: ユーザ情報作成API
+      description: |
+        ユーザ情報を作成します。<br>
+        ユーザの名前情報をリクエストで受け取り、ユーザIDと認証用のトークンを生成しデータベースへ保存します。<br>
+        tokenは以降の他のAPIコール時にヘッダに設定をします。
+      requestBody:
+        description: Request Body
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+        required: true
+      responses:
+        200:
+          description: A successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCreateResponse'
+      x-codegen-request-body-name: body
+  /user/get:
+    get:
+      tags:
+        - user
+      summary: ユーザ情報取得API
+      description: |
+        ユーザ情報を取得します。
+        「ユーザの認証と特定」の処理はリクエストヘッダの`x-token`を読み取ってデータベースに照会をします。
+      parameters:
+        - name: x-token
+          in: header
+          description: 認証トークン
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: A successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserGetResponse'
+  /user/update:
+    post:
+      tags:
+        - user
+      summary: ユーザ情報更新API
+      description: |
+        ユーザ情報の更新をします。
+        初期実装では名前の更新を行います。
+      parameters:
+        - name: x-token
+          in: header
+          description: 認証トークン
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: Request Body
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+        required: true
+      responses:
+        200:
+          description: A successful response.
+          content: {}
+      x-codegen-request-body-name: body
+  /game/finish:
+    post:
+      tags:
+        - game
+      summary: インゲーム終了API
+      description: |
+        スコアを送信してインゲームを終了し、ランキングへのスコアの登録と報酬の受け取りを行います。<br>
+        報酬のコインの計算式は自由に定義をしてみましょう。
+      parameters:
+        - name: x-token
+          in: header
+          description: 認証トークン
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: Request Body
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GameFinishRequest'
+        required: true
+      responses:
+        200:
+          description: A successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameFinishResponse'
+      x-codegen-request-body-name: body
+  /gacha/draw:
+    post:
+      tags:
+        - gacha
+      summary: ガチャ実行API
+      description: |
+        コインを消費してガチャを引きコレクションアイテムを取得します。<br>
+        既に所持しているアイテムもガチャで排出しますが、重複して持つことはできません。<br>
+        新しく獲得したアイテムはisNewがtrue,既に持っているアイテムはisNewがfalseとなります。<br>
+        <br>
+        コレクションアイテムの排出確率は以下の計算式で定義します。<br>
+        「あるコレクションアイテムの排出確率=あるコレクションアイテムの`重み`/全体の`重み`合計」<br>
+        例えばあるコレクションアイテムの`重み`が1、全体の`重み`合計が10だった場合はそのコレクションアイテムは10%の確率で排出します。
+      parameters:
+        - name: x-token
+          in: header
+          description: 認証トークン
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: Request Body
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GachaDrawRequest'
+        required: true
+      responses:
+        200:
+          description: A successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GachaDrawResponse'
+      x-codegen-request-body-name: body
+  /ranking/list:
+    get:
+      tags:
+        - ranking
+      summary: ランキング情報取得API
+      description: |
+        指定した順位から一定数の順位までのランキング情報を取得します。<br>
+        例えば「サーバ側での1回あたりのランキング取得件数設定」が10で、「startパラメータ」の指定が1だった場合は1位〜10位を、「startパラメータ」の指定が5だった場合は5位〜14位を返却します。<br>
+        本課題では同率順位は考慮せず、同じスコアだった場合はユーザーIDの昇順で順位を決定するものとします。
+      parameters:
+        - name: x-token
+          in: header
+          description: 認証トークン
+          required: true
+          schema:
+            type: string
+        - name: start
+          in: query
+          description: 開始順位
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: A successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RankingListResponse'
+  /collection/list:
+    get:
+      tags:
+        - collection
+      summary: コレクションアイテム一覧情報取得API
+      description: コレクションアイテム一覧情報。
+      parameters:
+        - name: x-token
+          in: header
+          description: 認証トークン
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: A successful response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionListResponse'
+components:
+  schemas:
+    SettingGetResponse:
+      type: object
+      properties:
+        gachaCoinConsumption:
+          type: integer
+          description: ガチャ1回あたりのコイン消費数
+    UserCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: ユーザ名
+    UserCreateResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: クライアント側で保存するトークン
+    UserGetResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: ユーザID
+        name:
+          type: string
+          description: ユーザ名
+        highScore:
+          type: integer
+          description: ハイスコア
+        coin:
+          type: integer
+          description: 所持コイン
+    UserUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: ユーザ名
+    GameFinishRequest:
+      type: object
+      properties:
+        score:
+          type: integer
+          description: スコア
+    GameFinishResponse:
+      type: object
+      properties:
+        coin:
+          type: integer
+          description: 獲得コイン
+    GachaDrawRequest:
+      type: object
+      properties:
+        times:
+          type: integer
+          description: 実行回数
+    GachaDrawResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GachaResult'
+          description: ガチャ
+    RankingListResponse:
+      type: object
+      properties:
+        ranks:
+          type: array
+          items:
+            $ref: '#/components/schemas/RankInfo'
+          description: 各順位情報
+    CollectionListResponse:
+      type: object
+      properties:
+        collections:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectionItem'
+          description: 所持アイテム名一覧
+    GachaResult:
+      type: object
+      properties:
+        collectionID:
+          type: string
+          description: コレクションID
+        name:
+          type: string
+          description: コレクション名
+        rarity:
+          type: integer
+          description: レアリティ(1=N, 2=R, 3=SR)
+        isNew:
+          type: boolean
+          description: 新規獲得判定(trueなら新規獲得.falseなら既に持っていた.)
+    RankInfo:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: ユーザID
+        userName:
+          type: string
+          description: ユーザ名
+        rank:
+          type: integer
+          description: 順位
+        score:
+          type: integer
+          description: スコア
+    CollectionItem:
+      type: object
+      properties:
+        collectionID:
+          type: string
+          description: コレクションID
+        name:
+          type: string
+          description: 名称
+        rarity:
+          type: integer
+          description: レアリティ(1=N, 2=R, 3=SR)
+        hasItem:
+          type: boolean
+          description: 所持判定(trueなら所持している.falseなら未所持)
