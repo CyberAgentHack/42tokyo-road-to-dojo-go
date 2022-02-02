@@ -34,7 +34,7 @@ $ docker-compose up mysql
 DDL, DMLファイルを再読み込みする場合は一度volumeを削除する必要があります。
 ```
 # mysqlの停止
-$ docker-compose down mysql
+$ docker-compose down
 # volumeの削除
 $ docker volume rm 42tokyo-road-to-dojo-go_db-data
 # 再起動
